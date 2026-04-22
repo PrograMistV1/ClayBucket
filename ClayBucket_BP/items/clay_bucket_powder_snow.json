@@ -9,7 +9,10 @@
 		},
 		"components": {
 			"minecraft:icon": "powder_snow_clay_bucket",
-			"minecraft:max_stack_size": 1
+			"minecraft:max_stack_size": 1,
+			"claybucket:bucket": {
+				"type": "powder_snow"
+			}
 		}
 	}
 }

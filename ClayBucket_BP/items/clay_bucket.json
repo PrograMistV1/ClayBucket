@@ -9,7 +9,10 @@
 		},
 		"components": {
 			"minecraft:icon": "clay_bucket",
-			"minecraft:max_stack_size": 16
+			"minecraft:max_stack_size": 16,
+			"claybucket:bucket": {
+				"type": "empty"
+			}
 		}
 	}
 }
