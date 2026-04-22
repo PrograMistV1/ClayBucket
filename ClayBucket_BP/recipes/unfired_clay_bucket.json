@@ -1,0 +1,22 @@
+{
+	"format_version": "1.20.10",
+	"minecraft:recipe_shaped": {
+		"description": {
+			"identifier": "claybucket:unfired_clay_bucket"
+		},
+		"tags": ["crafting_table"],
+		"pattern": [
+			"C C",
+			" C "
+		],
+		"key": {
+			"C": "minecraft:clay_ball"
+		},
+		"unlock": [
+			{
+				"item": "minecraft:clay_ball"
+			}
+		],
+		"result": "claybucket:unfired_clay_bucket"
+	}
+}

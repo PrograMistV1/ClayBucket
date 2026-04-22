@@ -1,0 +1,16 @@
+{
+	"format_version": "1.20.10",
+	"minecraft:recipe_furnace": {
+		"description": {
+			"identifier": "claybucket:clay_bucket"
+		},
+		"unlock": [
+			{
+				"item": "claybucket:unfired_clay_bucket"
+			}
+		],
+		"tags": ["furnace"],
+		"input": "claybucket:unfired_clay_bucket",
+		"output": "claybucket:clay_bucket"
+	}
+}
