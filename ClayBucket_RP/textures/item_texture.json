@@ -1,0 +1,11 @@
+{
+	"resource_pack_name": "ClayBucket",
+	"texture_name": "atlas.items",
+	"texture_data": {
+		"unfired_clay_bucket": {"textures": "textures/items/unfired_clay_bucket"},
+		"clay_bucket": {"textures": "textures/items/clay_bucket"},
+		"water_clay_bucket": {"textures": "textures/items/clay_bucket_water"},
+		"lava_clay_bucket": {"textures": "textures/items/clay_bucket_lava"},
+		"powder_snow_clay_bucket": {"textures": "textures/items/clay_bucket_powder_snow"}
+	}
+}

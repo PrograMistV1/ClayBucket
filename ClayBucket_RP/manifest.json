@@ -1,0 +1,17 @@
+{
+	"format_version": 1,
+	"header": {
+		"description": "pack.description",
+		"name": "ClayBucket_RP",
+		"uuid": "be8a0170-6920-40ef-b5b3-51c593a0fc21",
+		"version": [1, 0, 0]
+	},
+	"modules": [
+		{
+			"description": "pack.description",
+			"type": "resources",
+			"uuid": "0122e02d-99d9-4419-ac70-a6b56b494c6d",
+			"version": [1, 0, 0]
+		}
+	]
+}
