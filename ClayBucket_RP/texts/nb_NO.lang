@@ -1,2 +1,6 @@
 pack.description=Et tillegg som legger til en leirbøtte.
-
+item.claybucket:clay_bucket=Leirbøtte
+item.claybucket:unfired_clay_bucket=Ubrent leirbøtte
+item.claybucket:water_clay_bucket=Leirbøtte med vann
+item.claybucket:lava_clay_bucket=Leirbøtte med lava
+item.claybucket:powder_snow_clay_bucket=Leirbøtte med puddersnø

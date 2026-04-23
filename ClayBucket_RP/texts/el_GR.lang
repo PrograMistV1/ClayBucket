@@ -1,2 +1,6 @@
 pack.description=Ένα πρόσθετο που προσθέτει έναν πήλινο κουβά.
-
+item.claybucket:clay_bucket=Πήλινος κουβάς
+item.claybucket:unfired_clay_bucket=Άψητος πήλινος κουβάς
+item.claybucket:water_clay_bucket=Πήλινος κουβάς με νερό
+item.claybucket:lava_clay_bucket=Πήλινος κουβάς με λάβα
+item.claybucket:powder_snow_clay_bucket=Πήλινος κουβάς με χιόνι σε σκόνη

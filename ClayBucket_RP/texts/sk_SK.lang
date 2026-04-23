@@ -1,2 +1,6 @@
 pack.description=Doplnok, ktorý pridáva hlinený vedro.
-
+item.claybucket:clay_bucket=Hlinený vedro
+item.claybucket:unfired_clay_bucket=Nevypálený hlinený vedro
+item.claybucket:water_clay_bucket=Hlinený vedro s vodou
+item.claybucket:lava_clay_bucket=Hlinený vedro s lávou
+item.claybucket:powder_snow_clay_bucket=Hlinený vedro s práškovým snehom
