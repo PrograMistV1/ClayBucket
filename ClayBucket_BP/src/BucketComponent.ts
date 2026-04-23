@@ -1,17 +1,17 @@
 import {
     Block,
     Container,
-    CustomComponentParameters,
     Direction,
     Entity,
     GameMode,
-    ItemComponentUseOnEvent,
     ItemCustomComponent,
     ItemStack,
     LiquidType,
     Player,
+    PlayerInteractWithBlockAfterEvent,
     ScriptEventCommandMessageAfterEvent,
-    system
+    system,
+    world
 } from "@minecraft/server";
 import {LIQUID_SOURCES, LIQUID_TARGETS} from "./Liquids";
 import {BucketConfig, BucketType, FILLED_BUCKET_IDS, ItemContext} from "./Types";
@@ -29,24 +29,31 @@ export class BucketComponent implements ItemCustomComponent {
 
     constructor() {
         system.afterEvents.scriptEventReceive.subscribe(this.handleScriptEvent.bind(this), {namespaces: ["claybucket"]});
+        world.afterEvents.playerInteractWithBlock.subscribe(this.handlePlayerInteractWithBlock.bind(this));
     }
 
-    onUseOn = (event: ItemComponentUseOnEvent, param: CustomComponentParameters): void => {
-        const config = param.params as BucketConfig;
-        const player = event.source as Player;
-        const itemCtx = this.getSelectedItemContext(player);
+    // Required for structural compatibility with ItemCustomComponent.
+    onUseOn() {
+    }
+
+    private handlePlayerInteractWithBlock(event: PlayerInteractWithBlockAfterEvent): void {
+        const component = event.itemStack?.getComponent("claybucket:bucket");
+        if (!component) return;
+
+        const config = component.customComponentParameters.params as BucketConfig;
+        const itemCtx = this.getSelectedItemContext(event.player);
         if (!itemCtx) return;
 
         if (config.type === "empty") {
             const targetBlock = this.resolveAdjacentBlock(event.block, event.blockFace);
             if (!targetBlock) return;
-            this.handleFill(player, itemCtx, targetBlock);
+            this.handleFill(event.player, itemCtx, targetBlock);
         } else {
             const targetBlock = this.resolveEmptyTarget(event.block, event.blockFace, config.type);
             if (!targetBlock) return;
-            this.handleEmpty(config.type, player, itemCtx, targetBlock);
+            this.handleEmpty(config.type, event.player, itemCtx, targetBlock);
         }
-    };
+    }
 
     private handleFill(player: Player, itemCtx: ItemContext, targetBlock: Block): void {
         const source = LIQUID_SOURCES.find(s => s.canFill(targetBlock));
