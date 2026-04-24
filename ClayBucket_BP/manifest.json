@@ -4,7 +4,7 @@
 		"description": "pack.description",
 		"name": "ClayBucket_BP",
 		"uuid": "9b24aa2f-2aa5-4921-b9cb-5900d2047d6e",
-		"version": [1, 0, 0],
+		"version": [1, 0, 1],
 		"min_engine_version": [1, 26, 10]
 	},
 	"modules": [
@@ -12,11 +12,11 @@
 			"description": "pack.description",
 			"type": "data",
 			"uuid": "0a29df22-6bf1-47ba-b0c9-cde15f6d2264",
-			"version": [1, 0, 0]
+			"version": [1, 0, 1]
 		},
 		{
 			"uuid": "773a9b6c-1444-4f53-a080-1bf9f51b08bc",
-			"version": [1, 0, 0],
+			"version": [1, 0, 1],
 			"type": "script",
 			"entry": "scripts/Main.js"
 		}

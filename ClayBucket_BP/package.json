@@ -4,7 +4,7 @@
 		"@minecraft/vanilla-data": "^1.26.10"
 	},
 	"name": "claybucket_bp",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"main": "index.js",
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
