@@ -37,6 +37,8 @@ export class BucketComponent implements ItemCustomComponent {
     }
 
     private handlePlayerInteractWithBlock(event: PlayerInteractWithBlockAfterEvent): void {
+        if (event.block.typeId === "minecraft:frame" || event.block.typeId === "minecraft:glow_frame") return;
+
         const component = event.itemStack?.getComponent("claybucket:bucket");
         if (!component) return;
 
