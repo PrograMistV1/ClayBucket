@@ -81,7 +81,7 @@ const WATERLOGGED_TARGET: LiquidTarget = {
 
 const LAVA_TARGET: LiquidTarget = {
     canEmpty: block => block.isAir || block.isLiquid,
-    onEmpty: block => block.setType("minecraft:lava"),
+    onEmpty: block => block.setType("minecraft:flowing_lava"),
     emptySound: "bucket.empty_lava",
     bucketType: "lava",
 };
