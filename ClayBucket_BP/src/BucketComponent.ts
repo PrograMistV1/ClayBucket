@@ -47,8 +47,10 @@ export class BucketComponent implements ItemCustomComponent {
         if (!itemCtx) return;
 
         if (config.type === "empty") {
-            const targetBlock = this.resolveAdjacentBlock(event.block, event.blockFace);
-            if (!targetBlock) return;
+            let targetBlock = event.player.getBlockFromViewDirection({maxDistance: 6, includeLiquidBlocks: true}).block;
+            if (!targetBlock.isLiquid) {
+                targetBlock = this.resolveAdjacentBlock(event.block, event.blockFace);
+            }
             this.handleFill(event.player, itemCtx, targetBlock);
         } else {
             const targetBlock = this.resolveEmptyTarget(event.block, event.blockFace, config.type);
@@ -63,7 +65,7 @@ export class BucketComponent implements ItemCustomComponent {
 
         this.consumeItem(itemCtx);
         this.tryAddItem(player, new ItemStack(source.filledBucketId), itemCtx.container, itemCtx.slot);
-        targetBlock.dimension.playSound(source.fillSound, targetBlock.center());
+        targetBlock.dimension.playSound(source.fillSound, player.location);
         source.onFill(targetBlock);
     }
 
@@ -77,7 +79,7 @@ export class BucketComponent implements ItemCustomComponent {
         if (!liquidTarget) return;
 
         this.consumeItem(itemCtx);
-        targetBlock.dimension.playSound(liquidTarget.emptySound, targetBlock.center());
+        targetBlock.dimension.playSound(liquidTarget.emptySound, player.location);
         if (!this.isCreative(player)) {
             player.dimension.playSound("random.break", player.location, {volume: 1.0, pitch: 0.9});
         }
