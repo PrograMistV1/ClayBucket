@@ -87,6 +87,7 @@ export class BucketComponent implements ItemCustomComponent {
     private resolveAdjacentBlock(block: Block, face: Direction): Block | undefined {
         if (block.typeId === "minecraft:powder_snow") return block;
         if (block.typeId === "minecraft:cauldron") return block;
+        if (block.isLiquid) return block;
         if (block.isWaterlogged) return block;
         return ADJACENT_FACE[face]?.(block);
     }

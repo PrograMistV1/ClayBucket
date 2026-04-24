@@ -10,6 +10,7 @@
 		"components": {
 			"minecraft:icon": "clay_bucket",
 			"minecraft:max_stack_size": 16,
+			"minecraft:liquid_clipped": true,
 			"claybucket:bucket": {
 				"type": "empty"
 			}

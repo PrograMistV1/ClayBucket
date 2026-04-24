@@ -67,7 +67,7 @@ const CAULDRON_POWDER_SNOW_SOURCE: LiquidSource = {
 
 const WATER_TARGET: LiquidTarget = {
     canEmpty: block => block.isAir || block.isLiquid,
-    onEmpty: block => block.setType("minecraft:water"),
+    onEmpty: block => block.setType("minecraft:flowing_water"),
     emptySound: "bucket.empty_water",
     bucketType: "water",
 };
