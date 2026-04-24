@@ -5,7 +5,7 @@
 		"name": "ClayBucket_BP",
 		"uuid": "9b24aa2f-2aa5-4921-b9cb-5900d2047d6e",
 		"version": [1, 0, 1],
-		"min_engine_version": [1, 26, 10]
+		"min_engine_version": [1, 21, 114]
 	},
 	"modules": [
 		{
@@ -28,7 +28,7 @@
 		},
 		{
 			"module_name": "@minecraft/server",
-			"version": "2.6.0"
+			"version": "2.2.0"
 		}
 	]
 }
