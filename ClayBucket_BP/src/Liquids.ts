@@ -39,7 +39,7 @@ const CAULDRON_WATER_SOURCE: LiquidSource = {
         block.permutation.getState("cauldron_liquid") === "water" &&
         (block.permutation.getState("fill_level") as number) === 6,
     onFill: block => block.setType("minecraft:cauldron"),
-    fillSound: "bucket.fill_water",
+    fillSound: "cauldron.takewater",
     filledBucketId: "claybucket:water_clay_bucket",
 };
 
@@ -98,7 +98,7 @@ const CAULDRON_WATER_TARGET: LiquidTarget = {
         block.typeId === "minecraft:cauldron" &&
         block.permutation.getState("cauldron_liquid") === "water",
     onEmpty: block => block.setPermutation(block.permutation.withState("fill_level", 6)),
-    emptySound: "bucket.empty_water",
+    emptySound: "cauldron.fillwater",
     bucketType: "water",
 };
 
@@ -134,20 +134,26 @@ const CAULDRON_POWDER_SNOW_TARGET: LiquidTarget = {
 
 export const LIQUID_SOURCES: LiquidSource[] = [
     WATER_SOURCE,
-    CAULDRON_WATER_SOURCE,
     WATERLOGGED_SOURCE,
     LAVA_SOURCE,
-    CAULDRON_LAVA_SOURCE,
     POWDER_SNOW_SOURCE,
-    CAULDRON_POWDER_SNOW_SOURCE,
 ];
 
 export const LIQUID_TARGETS: LiquidTarget[] = [
     WATER_TARGET,
-    CAULDRON_WATER_TARGET,
     WATERLOGGED_TARGET,
     LAVA_TARGET,
-    CAULDRON_LAVA_TARGET,
     POWDER_SNOW_TARGET,
-    CAULDRON_POWDER_SNOW_TARGET,
+];
+
+export const CAULDRON_LIQUID_SOURCES: LiquidSource[] = [
+    CAULDRON_WATER_SOURCE,
+    CAULDRON_LAVA_SOURCE,
+    CAULDRON_POWDER_SNOW_SOURCE
+];
+
+export const CAULDRON_LIQUID_TARGETS: LiquidTarget[] = [
+    CAULDRON_WATER_TARGET,
+    CAULDRON_LAVA_TARGET,
+    CAULDRON_POWDER_SNOW_TARGET
 ];

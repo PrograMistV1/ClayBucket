@@ -1,9 +1,13 @@
 import {
     Block,
+    ButtonState,
     Container,
+    CustomComponentParameters,
     Direction,
     Entity,
     GameMode,
+    InputButton,
+    ItemComponentUseOnEvent,
     ItemCustomComponent,
     ItemStack,
     LiquidType,
@@ -13,8 +17,8 @@ import {
     system,
     world
 } from "@minecraft/server";
-import {LIQUID_SOURCES, LIQUID_TARGETS} from "./Liquids";
-import {BucketConfig, BucketType, FILLED_BUCKET_IDS, ItemContext} from "./Types";
+import {CAULDRON_LIQUID_SOURCES, CAULDRON_LIQUID_TARGETS, LIQUID_SOURCES, LIQUID_TARGETS} from "./Liquids";
+import {BucketConfig, BucketType, FILLED_BUCKET_IDS, ItemContext, LiquidSource, LiquidTarget} from "./Types";
 
 const ADJACENT_FACE: Record<Direction, (b: Block) => Block | undefined> = {
     [Direction.Down]: b => b.below(),
@@ -32,40 +36,53 @@ export class BucketComponent implements ItemCustomComponent {
         world.afterEvents.playerInteractWithBlock.subscribe(this.handlePlayerInteractWithBlock.bind(this));
     }
 
-    // Required for structural compatibility with ItemCustomComponent.
-    onUseOn() {
-    }
+    onUseOn = (e: ItemComponentUseOnEvent, p: CustomComponentParameters): void => {
+        if (!(e.source instanceof Player)) return;
 
-    private handlePlayerInteractWithBlock(event: PlayerInteractWithBlockAfterEvent): void {
-        if (event.block.typeId === "minecraft:frame" || event.block.typeId === "minecraft:glow_frame") return;
-
-        const component = event.itemStack?.getComponent("claybucket:bucket");
-        if (!component) return;
-
-        const config = component.customComponentParameters.params as BucketConfig;
-        const itemCtx = this.getSelectedItemContext(event.player);
+        const config = p.params as BucketConfig;
+        const itemCtx = this.getSelectedItemContext(e.source);
         if (!itemCtx) return;
 
         if (config.type === "empty") {
-            let targetBlock = event.player.getBlockFromViewDirection({maxDistance: 6, includeLiquidBlocks: true}).block;
-            if (!targetBlock.isLiquid) {
-                targetBlock = this.resolveAdjacentBlock(event.block, event.blockFace);
-            }
-            this.handleFill(event.player, itemCtx, targetBlock);
-        } else {
-            const targetBlock = this.resolveEmptyTarget(event.block, event.blockFace, config.type);
+            let targetBlock = e.source.getBlockFromViewDirection({maxDistance: 6, includeLiquidBlocks: true})?.block;
             if (!targetBlock) return;
-            this.handleEmpty(config.type, event.player, itemCtx, targetBlock);
+            if (!targetBlock.isLiquid || targetBlock.permutation.getState("liquid_depth") !== 0) {
+                targetBlock = this.resolveAdjacentBlock(e.block, e.blockFace);
+            }
+            this.handleFill(e.source, itemCtx, targetBlock, LIQUID_SOURCES);
+        } else {
+            const targetBlock = this.resolveEmptyTarget(e.block, e.blockFace, config.type);
+            if (!targetBlock) return;
+            this.handleEmpty(config.type, e.source, itemCtx, targetBlock, LIQUID_TARGETS);
         }
     }
 
-    private handleFill(player: Player, itemCtx: ItemContext, targetBlock: Block): void {
-        const source = LIQUID_SOURCES.find(s => s.canFill(targetBlock));
+    private handlePlayerInteractWithBlock(e: PlayerInteractWithBlockAfterEvent): void {
+        if (e.player.inputInfo.getButtonState(InputButton.Sneak) === ButtonState.Pressed) return;
+        if (e.block.typeId !== "minecraft:cauldron") return;
+
+        const itemCtx = this.getSelectedItemContext(e.player);
+        if (!itemCtx?.item) return;
+
+        const component = itemCtx.item.getComponent("claybucket:bucket");
+        if (!component) return;
+
+        const config = component.customComponentParameters.params as BucketConfig;
+
+        if (config.type === "empty") {
+            this.handleFill(e.player, itemCtx, e.block, CAULDRON_LIQUID_SOURCES);
+        } else {
+            this.handleEmpty(config.type, e.player, itemCtx, e.block, CAULDRON_LIQUID_TARGETS);
+        }
+    }
+
+    private handleFill(player: Player, itemCtx: ItemContext, targetBlock: Block, sources: LiquidSource[]): void {
+        const source = sources.find(s => s.canFill(targetBlock));
         if (!source) return;
 
         this.consumeItem(itemCtx);
         this.tryAddItem(player, new ItemStack(source.filledBucketId), itemCtx.container, itemCtx.slot);
-        targetBlock.dimension.playSound(source.fillSound, player.location);
+        targetBlock.dimension.playSound(source.fillSound, {...player.location, y: player.location.y + 0.5});
         source.onFill(targetBlock);
     }
 
@@ -73,13 +90,14 @@ export class BucketComponent implements ItemCustomComponent {
         bucketType: BucketType,
         player: Player,
         itemCtx: ItemContext,
-        targetBlock: Block
+        targetBlock: Block,
+        targets: LiquidTarget[],
     ): void {
-        const liquidTarget = LIQUID_TARGETS.find(t => t.bucketType === bucketType && t.canEmpty(targetBlock));
+        const liquidTarget = targets.find(t => t.bucketType === bucketType && t.canEmpty(targetBlock));
         if (!liquidTarget) return;
 
         this.consumeItem(itemCtx);
-        targetBlock.dimension.playSound(liquidTarget.emptySound, player.location);
+        targetBlock.dimension.playSound(liquidTarget.emptySound, {...player.location, y: player.location.y + 0.5});
         if (!this.isCreative(player)) {
             player.dimension.playSound("random.break", player.location, {volume: 1.0, pitch: 0.9});
         }
@@ -88,14 +106,12 @@ export class BucketComponent implements ItemCustomComponent {
 
     private resolveAdjacentBlock(block: Block, face: Direction): Block | undefined {
         if (block.typeId === "minecraft:powder_snow") return block;
-        if (block.typeId === "minecraft:cauldron") return block;
         if (block.isLiquid) return block;
         if (block.isWaterlogged) return block;
         return ADJACENT_FACE[face]?.(block);
     }
 
     private resolveEmptyTarget(block: Block, face: Direction, bucketType: BucketType): Block | undefined {
-        if (block.typeId === "minecraft:cauldron") return block;
         if (block.canContainLiquid(LiquidType.Water) && bucketType === "water") return block;
         const adjacent = ADJACENT_FACE[face]?.(block);
         if (!adjacent) return undefined;
