@@ -1,6 +1,6 @@
 {
 	"dependencies": {
-		"@minecraft/server": "2.2.0-",
+		"@minecraft/server": "2.2.0",
 		"@minecraft/vanilla-data": "^1.21.10"
 	},
 	"name": "claybucket_bp",
@@ -8,10 +8,14 @@
 	"main": "index.js",
 	"scripts": {
 		"build": "tsc -p tsconfig.json",
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"test": "echo \"Error: no test specified\" && exit 1",
+		"watch": "tsc --watch"
 	},
 	"keywords": [],
 	"author": "PrograMistV1",
 	"license": "ISC",
-	"description": ""
+	"description": "",
+	"devDependencies": {
+		"typescript": "5.7"
+	}
 }
