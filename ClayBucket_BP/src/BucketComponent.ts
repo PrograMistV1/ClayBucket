@@ -29,10 +29,20 @@ const ADJACENT_FACE: Record<Direction, (b: Block) => Block | undefined> = {
     [Direction.West]: b => b.west(),
 };
 
+const BARREL_BUCKET_TYPES = new Set<BucketType>(["water", "lava", "empty"]);
+
+type PendingBarrelFill = {
+    resolve: (state: { input: string; filling: number; isBarrel: boolean }) => void;
+};
+
 export class BucketComponent implements ItemCustomComponent {
+    private static readonly BARREL_RESPONSE_TIMEOUT_TICKS = 20; // 1 second - abandon the request if ExNihilo never answers
+    private pendingBarrelRequests = new Map<string, PendingBarrelFill>();
+    private barrelRequestCounter = 0;
 
     constructor() {
         system.afterEvents.scriptEventReceive.subscribe(this.handleScriptEvent.bind(this), {namespaces: ["claybucket"]});
+        system.afterEvents.scriptEventReceive.subscribe(this.handleBarrelStateResponse.bind(this), {namespaces: ["exnihilo"]});
         world.afterEvents.playerInteractWithBlock.subscribe(this.handlePlayerInteractWithBlock.bind(this));
     }
 
@@ -42,6 +52,11 @@ export class BucketComponent implements ItemCustomComponent {
         const config = p.params as BucketConfig;
         const itemCtx = this.getSelectedItemContext(e.source);
         if (!itemCtx) return;
+
+        if (e.block.getComponent("exnihilo:barrel") && BARREL_BUCKET_TYPES.has(config.type)) {
+            this.handleBarrelInteraction(config.type, e.source, itemCtx, e.block);
+            return;
+        }
 
         if (config.type === "empty") {
             let targetBlock = e.source.getBlockFromViewDirection({maxDistance: 6, includeLiquidBlocks: true})?.block;
@@ -59,7 +74,6 @@ export class BucketComponent implements ItemCustomComponent {
 
     private handlePlayerInteractWithBlock(e: PlayerInteractWithBlockAfterEvent): void {
         if (e.player.inputInfo.getButtonState(InputButton.Sneak) === ButtonState.Pressed) return;
-        if (e.block.typeId !== "minecraft:cauldron") return;
 
         const itemCtx = this.getSelectedItemContext(e.player);
         if (!itemCtx?.item) return;
@@ -69,12 +83,134 @@ export class BucketComponent implements ItemCustomComponent {
 
         const config = component.customComponentParameters.params as BucketConfig;
 
+        if (e.block.getComponent("exnihilo:barrel") && BARREL_BUCKET_TYPES.has(config.type)) {
+            this.handleBarrelInteraction(config.type, e.player, itemCtx, e.block);
+            return;
+        }
+
+        if (e.block.typeId !== "minecraft:cauldron") return;
+
         if (config.type === "empty") {
             this.handleFill(e.player, itemCtx, e.block, CAULDRON_LIQUID_SOURCES);
         } else {
             this.handleEmpty(config.type, e.player, itemCtx, e.block, CAULDRON_LIQUID_TARGETS);
         }
     }
+
+    // --- Barrel (ExNihilo) integration ---------------------------------------------------
+
+    private handleBarrelInteraction(
+        bucketType: BucketType,
+        player: Player,
+        itemCtx: ItemContext,
+        barrelBlock: Block
+    ): void {
+        if (bucketType === "empty") {
+            this.tryFillFromBarrel(player, itemCtx, barrelBlock);
+        } else {
+            this.tryEmptyIntoBarrel(bucketType, player, itemCtx, barrelBlock);
+        }
+    }
+
+    /** Empty bucket + barrel of water/lava at 100% -> filled bucket, barrel is cleared. */
+    private tryFillFromBarrel(player: Player, itemCtx: ItemContext, barrelBlock: Block): void {
+        this.requestBarrelState(barrelBlock).then(state => {
+            if (!state.isBarrel) return;
+            if (state.input !== "exnihilo:water" && state.input !== "exnihilo:lava") return;
+            if (state.filling < 100) return;
+
+            const filledBucketId = state.input === "exnihilo:water" ? FILLED_BUCKET_IDS["water"] : FILLED_BUCKET_IDS["lava"];
+            const fillSound = state.input === "exnihilo:water" ? "bucket.fill_water" : "bucket.fill_lava";
+
+            this.consumeItem(itemCtx);
+            this.tryAddItem(player, new ItemStack(filledBucketId), itemCtx.container, itemCtx.slot);
+            barrelBlock.dimension.playSound(fillSound, {...player.location, y: player.location.y + 0.5});
+
+            this.sendBarrelCommand(barrelBlock, "exnihilo:barrel_empty", {
+                dimension: barrelBlock.dimension.id,
+                x: barrelBlock.x,
+                y: barrelBlock.y,
+                z: barrelBlock.z
+            });
+        });
+    }
+
+    /** Filled water/lava bucket -> barrel is empty or already holds the same liquid/ */
+    private tryEmptyIntoBarrel(bucketType: Exclude<BucketType, "empty">, player: Player, itemCtx: ItemContext, barrelBlock: Block): void {
+        this.requestBarrelState(barrelBlock).then(state => {
+            if (!state.isBarrel) return;
+
+            const targetInput = bucketType === "water" ? "exnihilo:water" : "exnihilo:lava";
+            const canEmpty = state.input === "exnihilo:default" || state.input === targetInput;
+            if (!canEmpty) return;
+
+            const emptySound = bucketType === "water" ? "bucket.empty_water" : "bucket.empty_lava";
+
+            this.consumeItem(itemCtx);
+            barrelBlock.dimension.playSound(emptySound, {...player.location, y: player.location.y + 0.5});
+            if (!this.isCreative(player)) {
+                player.dimension.playSound("random.break", player.location, {volume: 1.0, pitch: 0.9});
+            }
+
+            this.sendBarrelCommand(barrelBlock, "exnihilo:barrel_set", {
+                dimension: barrelBlock.dimension.id,
+                x: barrelBlock.x,
+                y: barrelBlock.y,
+                z: barrelBlock.z,
+                input: targetInput,
+                filling: 100
+            });
+        });
+    }
+
+    private requestBarrelState(barrelBlock: Block): Promise<{ input: string; filling: number; isBarrel: boolean }> {
+        return new Promise(resolve => {
+            const responseId = `req_${this.barrelRequestCounter++}_${system.currentTick}`;
+            this.pendingBarrelRequests.set(responseId, {resolve});
+
+            this.sendBarrelCommand(barrelBlock, "exnihilo:barrel_get", {
+                dimension: barrelBlock.dimension.id,
+                x: barrelBlock.x,
+                y: barrelBlock.y,
+                z: barrelBlock.z,
+                responseId
+            });
+
+            system.runTimeout(() => {
+                if (!this.pendingBarrelRequests.has(responseId)) return;
+                this.pendingBarrelRequests.delete(responseId);
+                resolve({input: "exnihilo:default", filling: 0, isBarrel: false});
+            }, BucketComponent.BARREL_RESPONSE_TIMEOUT_TICKS);
+        });
+    }
+
+    private handleBarrelStateResponse(event: ScriptEventCommandMessageAfterEvent): void {
+        if (event.id !== "exnihilo:barrel_state") return;
+
+        let payload: { responseId?: string; input: string; filling: number; isBarrel: boolean };
+        try {
+            payload = JSON.parse(event.message);
+        } catch {
+            return;
+        }
+
+        if (!payload.responseId) return;
+        const pending = this.pendingBarrelRequests.get(payload.responseId);
+        if (!pending) return;
+
+        this.pendingBarrelRequests.delete(payload.responseId);
+        pending.resolve({input: payload.input, filling: payload.filling, isBarrel: payload.isBarrel});
+    }
+
+    private sendBarrelCommand(block: Block, id: string, payload: Record<string, unknown>): void {
+        try {
+            block.dimension.runCommand(`scriptevent ${id} ${JSON.stringify(payload)}`);
+        } catch (e) {
+            console.warn(`[claybucket] Failed to send ${id} to barrel: ${e}`);
+        }
+    }
+
+    // --------------------------------------------------------------------------------------
 
     private handleFill(player: Player, itemCtx: ItemContext, targetBlock: Block, sources: LiquidSource[]): void {
         const source = sources.find(s => s.canFill(targetBlock));
