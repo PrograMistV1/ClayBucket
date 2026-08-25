@@ -1,0 +1,20 @@
+{
+	"compilerOptions": {
+		"target": "ES2021",
+		"module": "ES2020",
+		"moduleResolution": "Bundler",
+		"allowSyntheticDefaultImports": true,
+		"baseUrl": "./packs/ClayBucket_BP/scripts",
+		"strict": true,
+		"skipLibCheck": true
+	},
+	"files": [
+		"packs/BP/scripts/main.ts"
+	],
+	"include": [
+		"packs/ExNihilo_BP/scripts/**/*.ts"
+	],
+	"exclude": [
+		"node_modules"
+	]
+}

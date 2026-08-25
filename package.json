@@ -1,0 +1,13 @@
+{
+	"dependencies": {
+		"@bedrock-core/server": "^0.1.0",
+		"@minecraft/server": "2.2.0",
+		"@minecraft/vanilla-data": "^1.26.2"
+	},
+	"name": "claybucket_bp",
+	"version": "1.0.3",
+	"keywords": [],
+	"author": "PrograMistV1",
+	"license": "ISC",
+	"description": ""
+}

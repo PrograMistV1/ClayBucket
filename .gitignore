@@ -1,5 +1,4 @@
-.idea
-/ClayBucket_BP/node_modules/
-/ClayBucket_BP/scripts/
-/dist/
+/build
+/.regolith
 /.idea/
+/node_modules/

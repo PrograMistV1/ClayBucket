@@ -1,0 +1,52 @@
+{
+	"$schema": "https://raw.githubusercontent.com/Bedrock-OSS/regolith-schemas/main/config/unified.json",
+	"author": "PrograMistV1",
+	"name": "ClayBucket",
+	"packs": {
+		"behaviorPack": "./packs/ClayBucket_BP",
+		"resourcePack": "./packs/ClayBucket_RP"
+	},
+	"regolith": {
+		"dataPath": "./packs/data",
+		"filterDefinitions": {
+			"bundler": {
+				"url": "github.com/bedrock-core/regolith-filters",
+				"version": "1.1.2"
+			},
+			"parcel": {
+				"url": "github.com/azurite-bedrock/regolith-filters",
+				"version": "1.1.1"
+			},
+			"texture_list": {
+				"url": "github.com/Bedrock-OSS/regolith-filters",
+				"version": "1.1.3"
+			}
+		},
+		"formatVersion": "1.8.0",
+		"profiles": {
+			"default": {
+				"export": {
+					"build": "standard",
+					"readOnly": false,
+					"target": "development"
+				},
+				"filters": [
+					{
+						"filter": "bundler"
+					},
+					{
+						"filter": "texture_list"
+					},
+					{
+						"filter": "parcel",
+						"settings": {
+							"content_type": "addon",
+							"output": "build/${config.name}-${git.tag ?? 'dev'}.mcaddon",
+							"update_version_from_tag": true
+						}
+					}
+				]
+			}
+		}
+	}
+}
