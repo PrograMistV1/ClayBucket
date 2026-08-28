@@ -12,7 +12,7 @@
 		"packs/BP/scripts/main.ts"
 	],
 	"include": [
-		"packs/ExNihilo_BP/scripts/**/*.ts"
+		"packs/ClayBucket_BP/scripts/**/*.ts"
 	],
 	"exclude": [
 		"node_modules"

@@ -1,7 +1,8 @@
 {
 	"dependencies": {
 		"@bedrock-core/server": "^0.1.0",
-		"@minecraft/server": "2.2.0",
+		"@bedrock-core/server-runtime": "^0.1.0",
+		"@minecraft/server": "2.8.0",
 		"@minecraft/vanilla-data": "^1.26.2"
 	},
 	"name": "claybucket_bp",

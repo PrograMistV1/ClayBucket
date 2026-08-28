@@ -17,8 +17,10 @@ import {
     system,
     world
 } from "@minecraft/server";
+import {core} from '@bedrock-core/server-runtime';
 import {CAULDRON_LIQUID_SOURCES, CAULDRON_LIQUID_TARGETS, LIQUID_SOURCES, LIQUID_TARGETS} from "./Liquids";
 import {BucketConfig, BucketType, FILLED_BUCKET_IDS, ItemContext, LiquidSource, LiquidTarget} from "./Types";
+import {BarrelRPC, BarrelState, CrucibleRPC, CrucibleState, EXNIHILO_NODE_ID, TilePosition} from "./rpc/ExNihilo";
 
 const ADJACENT_FACE: Record<Direction, (b: Block) => Block | undefined> = {
     [Direction.Down]: b => b.below(),
@@ -32,23 +34,13 @@ const ADJACENT_FACE: Record<Direction, (b: Block) => Block | undefined> = {
 const BARREL_BUCKET_TYPES = new Set<BucketType>(["water", "lava", "empty"]);
 const CRUCIBLE_BUCKET_TYPES = new Set<BucketType>(["empty"]);
 
-type TileFluidState = { input: string; filling: number };
-
-type PendingTileRequest<T> = {
-    resolve: (state: T) => void;
-};
 
 export class BucketComponent implements ItemCustomComponent {
-    private static readonly TILE_RESPONSE_TIMEOUT_TICKS = 20; // 1 second - abandon the request if ExNihilo never answers
-    private pendingBarrelRequests = new Map<string, PendingTileRequest<TileFluidState & { isBarrel: boolean }>>();
-    private pendingCrucibleRequests = new Map<string, PendingTileRequest<TileFluidState & { isCrucible: boolean }>>();
-    private barrelRequestCounter = 0;
-    private crucibleRequestCounter = 0;
+    private readonly exnihiloBarrel = core.rpc.typed<BarrelRPC>(EXNIHILO_NODE_ID);
+    private readonly exnihiloCrucible = core.rpc.typed<CrucibleRPC>(EXNIHILO_NODE_ID);
 
     constructor() {
         system.afterEvents.scriptEventReceive.subscribe(this.handleScriptEvent.bind(this), {namespaces: ["claybucket"]});
-        system.afterEvents.scriptEventReceive.subscribe(this.handleBarrelStateResponse.bind(this), {namespaces: ["exnihilo"]});
-        system.afterEvents.scriptEventReceive.subscribe(this.handleCrucibleStateResponse.bind(this), {namespaces: ["exnihilo"]});
         world.afterEvents.playerInteractWithBlock.subscribe(this.handlePlayerInteractWithBlock.bind(this));
     }
 
@@ -75,7 +67,7 @@ export class BucketComponent implements ItemCustomComponent {
             if (!targetBlock.isLiquid || targetBlock.permutation.getState("liquid_depth") !== 0) {
                 targetBlock = this.resolveAdjacentBlock(e.block, e.blockFace);
             }
-            this.handleFill(e.source, itemCtx, targetBlock, LIQUID_SOURCES);
+            this.handleFill(e.source, itemCtx, targetBlock as Block, LIQUID_SOURCES);
         } else {
             const targetBlock = this.resolveEmptyTarget(e.block, e.blockFace, config.type);
             if (!targetBlock) return;
@@ -141,17 +133,12 @@ export class BucketComponent implements ItemCustomComponent {
             this.consumeItem(itemCtx);
             this.tryAddItem(player, new ItemStack(filledBucketId), itemCtx.container, itemCtx.slot);
             barrelBlock.dimension.playSound(fillSound, {...player.location, y: player.location.y + 0.5});
-
-            this.sendTileCommand(barrelBlock, "exnihilo:barrel_empty", {
-                dimension: barrelBlock.dimension.id,
-                x: barrelBlock.x,
-                y: barrelBlock.y,
-                z: barrelBlock.z
-            });
-        });
+            this.exnihiloBarrel.barrelEmpty(this.toPosition(barrelBlock))
+                .catch(err => console.warn(`[claybucket] barrelEmpty failed: ${String(err)}`));
+        }).catch(err => console.warn(`[claybucket] barrelGet failed: ${String(err)}`));
     }
 
-    /** Filled water/lava bucket -> barrel is empty or already holds the same liquid/ */
+    /** Filled water/lava bucket -> barrel is empty or already holds the same liquid. */
     private tryEmptyIntoBarrel(bucketType: Exclude<BucketType, "empty">, player: Player, itemCtx: ItemContext, barrelBlock: Block): void {
         this.requestBarrelState(barrelBlock).then(state => {
             if (!state.isBarrel) return;
@@ -168,54 +155,18 @@ export class BucketComponent implements ItemCustomComponent {
                 player.dimension.playSound("random.break", player.location, {volume: 1.0, pitch: 0.9});
             }
 
-            this.sendTileCommand(barrelBlock, "exnihilo:barrel_set", {
-                dimension: barrelBlock.dimension.id,
-                x: barrelBlock.x,
-                y: barrelBlock.y,
-                z: barrelBlock.z,
-                input: targetInput,
-                filling: 100
-            });
-        });
+            this.exnihiloBarrel.barrelSet({...this.toPosition(barrelBlock), input: targetInput, filling: 100})
+                .catch(err => console.warn(`[claybucket] barrelSet failed: ${String(err)}`));
+        }).catch(err => console.warn(`[claybucket] barrelGet failed: ${String(err)}`));
     }
 
-    private requestBarrelState(barrelBlock: Block): Promise<TileFluidState & { isBarrel: boolean }> {
-        return new Promise(resolve => {
-            const responseId = `req_${this.barrelRequestCounter++}_${system.currentTick}`;
-            this.pendingBarrelRequests.set(responseId, {resolve});
-
-            this.sendTileCommand(barrelBlock, "exnihilo:barrel_get", {
-                dimension: barrelBlock.dimension.id,
-                x: barrelBlock.x,
-                y: barrelBlock.y,
-                z: barrelBlock.z,
-                responseId
-            });
-
-            system.runTimeout(() => {
-                if (!this.pendingBarrelRequests.has(responseId)) return;
-                this.pendingBarrelRequests.delete(responseId);
-                resolve({input: "exnihilo:default", filling: 0, isBarrel: false});
-            }, BucketComponent.TILE_RESPONSE_TIMEOUT_TICKS);
-        });
-    }
-
-    private handleBarrelStateResponse(event: ScriptEventCommandMessageAfterEvent): void {
-        if (event.id !== "exnihilo:barrel_state") return;
-
-        let payload: { responseId?: string; input: string; filling: number; isBarrel: boolean };
+    /** Wraps the RPC call and falls back to "not a barrel" instead of rejecting on timeout/absence. */
+    private async requestBarrelState(barrelBlock: Block): Promise<BarrelState> {
         try {
-            payload = JSON.parse(event.message);
+            return await this.exnihiloBarrel.barrelGet(this.toPosition(barrelBlock));
         } catch {
-            return;
+            return ({input: "exnihilo:default", filling: 0, isBarrel: false});
         }
-
-        if (!payload.responseId) return;
-        const pending = this.pendingBarrelRequests.get(payload.responseId);
-        if (!pending) return;
-
-        this.pendingBarrelRequests.delete(payload.responseId);
-        pending.resolve({input: payload.input, filling: payload.filling, isBarrel: payload.isBarrel});
     }
 
     // --- Crucible (ExNihilo) integration --------------------------------------------------
@@ -236,62 +187,23 @@ export class BucketComponent implements ItemCustomComponent {
             this.tryAddItem(player, new ItemStack(filledBucketId), itemCtx.container, itemCtx.slot);
             crucibleBlock.dimension.playSound(fillSound, {...player.location, y: player.location.y + 0.5});
 
-            this.sendTileCommand(crucibleBlock, "exnihilo:crucible_empty", {
-                dimension: crucibleBlock.dimension.id,
-                x: crucibleBlock.x,
-                y: crucibleBlock.y,
-                z: crucibleBlock.z
-            });
-        });
+            this.exnihiloCrucible.crucibleEmpty(this.toPosition(crucibleBlock))
+                .catch(err => console.warn(`[claybucket] crucibleEmpty failed: ${String(err)}`));
+        }).catch(err => console.warn(`[claybucket] crucibleGet failed: ${String(err)}`));
     }
 
-    private requestCrucibleState(crucibleBlock: Block): Promise<TileFluidState & { isCrucible: boolean }> {
-        return new Promise(resolve => {
-            const responseId = `req_${this.crucibleRequestCounter++}_${system.currentTick}`;
-            this.pendingCrucibleRequests.set(responseId, {resolve});
-
-            this.sendTileCommand(crucibleBlock, "exnihilo:crucible_get", {
-                dimension: crucibleBlock.dimension.id,
-                x: crucibleBlock.x,
-                y: crucibleBlock.y,
-                z: crucibleBlock.z,
-                responseId
-            });
-
-            system.runTimeout(() => {
-                if (!this.pendingCrucibleRequests.has(responseId)) return;
-                this.pendingCrucibleRequests.delete(responseId);
-                resolve({input: "exnihilo:default", filling: 0, isCrucible: false});
-            }, BucketComponent.TILE_RESPONSE_TIMEOUT_TICKS);
-        });
-    }
-
-    private handleCrucibleStateResponse(event: ScriptEventCommandMessageAfterEvent): void {
-        if (event.id !== "exnihilo:crucible_state") return;
-
-        let payload: { responseId?: string; input: string; filling: number; isCrucible: boolean };
+    private async requestCrucibleState(crucibleBlock: Block): Promise<CrucibleState> {
         try {
-            payload = JSON.parse(event.message);
+            return await this.exnihiloCrucible.crucibleGet(this.toPosition(crucibleBlock));
         } catch {
-            return;
+            return ({input: "exnihilo:default", filling: 0, isCrucible: false});
         }
-
-        if (!payload.responseId) return;
-        const pending = this.pendingCrucibleRequests.get(payload.responseId);
-        if (!pending) return;
-
-        this.pendingCrucibleRequests.delete(payload.responseId);
-        pending.resolve({input: payload.input, filling: payload.filling, isCrucible: payload.isCrucible});
     }
 
     // --------------------------------------------------------------------------------------
 
-    private sendTileCommand(block: Block, id: string, payload: Record<string, unknown>): void {
-        try {
-            block.dimension.runCommand(`scriptevent ${id} ${JSON.stringify(payload)}`);
-        } catch (e) {
-            console.warn(`[claybucket] Failed to send ${id}: ${e}`);
-        }
+    private toPosition(block: Block): TilePosition {
+        return {dimension: block.dimension.id, x: block.x, y: block.y, z: block.z};
     }
 
     // --------------------------------------------------------------------------------------
@@ -349,7 +261,7 @@ export class BucketComponent implements ItemCustomComponent {
             itemCtx.item.amount = newAmount;
             itemCtx.container.setItem(itemCtx.slot, itemCtx.item);
         } else {
-            itemCtx.container.setItem(itemCtx.slot, null);
+            itemCtx.container.setItem(itemCtx.slot);
         }
     }
 
@@ -395,7 +307,7 @@ export class BucketComponent implements ItemCustomComponent {
     }
 
     private handleFillEvent(player: Player, itemCtx: ItemContext, message: string): void {
-        if (itemCtx.item.typeId !== "claybucket:clay_bucket") return;
+        if (itemCtx.item?.typeId !== "claybucket:clay_bucket") return;
 
         const bucketType = message.trim() as Exclude<BucketType, "empty">;
         const filledBucketId = FILLED_BUCKET_IDS[bucketType];
@@ -409,8 +321,12 @@ export class BucketComponent implements ItemCustomComponent {
     }
 
     private handleEmptyEvent(player: Player, itemCtx: ItemContext): void {
-        const component = itemCtx.item.getComponent("claybucket:bucket")
-        if (!component || component.customComponentParameters.params["type"] === "empty") return;
+        if (!itemCtx?.item) return;
+        const component = itemCtx.item.getComponent("claybucket:bucket");
+        if (!component) return;
+
+        const config = component.customComponentParameters.params as BucketConfig;
+        if (config.type === "empty") return;
 
         this.consumeItem(itemCtx);
         if (!this.isCreative(player)) {

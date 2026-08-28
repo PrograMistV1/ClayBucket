@@ -46,6 +46,24 @@
 						}
 					}
 				]
+			},
+			"debug": {
+				"export": {
+					"build": "standard",
+					"readOnly": false,
+					"target": "development"
+				},
+				"filters": [
+					{
+						"filter": "bundler",
+						"settings": {
+							"debug": true
+						}
+					},
+					{
+						"filter": "texture_list"
+					}
+				]
 			}
 		}
 	}
